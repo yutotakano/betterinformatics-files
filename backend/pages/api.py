@@ -1,6 +1,7 @@
 import datetime
 
 import diff_match_patch as dmp_module
+from django.db.models.functions import Collate
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
@@ -14,6 +15,7 @@ from pages.models import Page, PageAuthor, PageParent, PageRevision
 from util.response import ErrorSchema, not_allowed, not_possible
 
 router = Router(tags=["Pages"])
+revisions_router = Router(tags=["Pages"])
 
 
 class PageAuthorResponse(Schema):
@@ -131,6 +133,45 @@ def get_page_author(request) -> PageAuthor:
     return author
 
 
+@revisions_router.get(
+    "/",
+    response={200: PageRevisionListResponse, 403: ErrorSchema, 404: ErrorSchema},
+    operation_id="listAllRevisions",
+)
+@auth_check.require_login
+def list_all_revisions(request):
+    revisions = (
+        PageRevision.objects.filter(redacted=False)
+        .all()
+        .order_by("-created_at")
+        .select_related("author")[:20]
+    )
+
+    can_see_redacted = auth_check.has_admin_rights(request)
+
+    revision_list = []
+    for rev in revisions:
+        revision_list.append(
+            {
+                "id": rev.id,
+                "created_at": rev.created_at.isoformat(),
+                "author": get_page_author_response(rev.author, rev.anonymised, request),
+                "message": "Redacted Revision"
+                if rev.redacted and not can_see_redacted
+                else rev.message,
+                "content_delta": ""
+                if rev.redacted and not can_see_redacted
+                else patch_to_standard_diff(rev.content_delta),
+                "title_delta": ""
+                if rev.redacted and not can_see_redacted
+                else patch_to_standard_diff(rev.title_delta),
+                "redacted": rev.redacted,
+            }
+        )
+
+    return {"revisions": revision_list}
+
+
 @router.get(
     "/", response={200: PageListResponse, 404: ErrorSchema}, operation_id="listPages"
 )
@@ -156,7 +197,7 @@ def list_pages(
     pages = (
         query.select_related("author", "category")
         .prefetch_related("parents")
-        .order_by("title")
+        .order_by(Collate("title", "C"))
     )
 
     page_list = []

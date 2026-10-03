@@ -42,6 +42,7 @@ def restrict_proxied(f):
 # documentation generation and type-validated API inputs.
 api = NinjaAPI()
 api.add_router("page/", "pages.api.router")
+api.add_router("pagerevisions/", "pages.api.revisions_router")
 api.add_router("feedback/", "feedback.api.router")
 api.add_router("image/", "images.api.router")
 api.add_router("dissertations/", "dissertations.api.router")
