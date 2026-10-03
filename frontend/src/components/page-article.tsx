@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState } from "react";
+import React, { lazy, Suspense, useEffect, useState } from "react";
 import {
   PageListResponse,
   PageListResponseItem,
@@ -32,7 +32,13 @@ import useForm from "../hooks/useForm";
 import { useUser } from "../auth";
 import { loadCategories } from "../api/hooks";
 import { useRequest } from "ahooks";
-import { Link, useMatch, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useBeforeUnload,
+  useMatch,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { ExtremelyTrustedHTML } from "./extremely-trusted-html";
 import { usePendingImages } from "./Editor/pending-images";
@@ -139,6 +145,21 @@ export const PageArticle: React.FC<{
     formState.title !== page.title ||
     formState.category !== (page.category?.slug ?? null) ||
     formState.parents !== page.parents;
+
+  // Prevent closing the tab with unsaved changes
+  // note this doesn't catch navigation within the app, rr doesn't support
+  // blocking navigation for declarative mode :((
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [hasUnsavedChanges]);
 
   const [undoStack, setUndoStack] = useState<UndoStack>({ prev: [], next: [] });
 
