@@ -1,10 +1,11 @@
 import datetime
 import random
+import time
 
 import jwt
 from django.conf import settings
 from django.core.mail import send_mail
-from django.http import HttpRequest
+from django.http import HttpRequest, StreamingHttpResponse
 from django.http.response import HttpResponseRedirect, JsonResponse
 from email_validator import EmailNotValidError, validate_email
 from ipware import IpWare
@@ -186,6 +187,39 @@ def update_name(request: HttpRequest):
     request.user.profile.display_username = display_username.strip()
     request.user.profile.save()
     return response.success()
+
+
+@response.request_get()
+def auth_events(request: HttpRequest):
+    # SSE endpoint; todo: investigate asyncio if we migrate to uvicorn
+
+    if request.user is None:
+        return response.not_allowed()
+
+    def event_stream():
+        try:
+            # Check if there is a request to authenticate elsewhere
+            try:
+                VerificationCode.objects.get(
+                    uun=request.user.username,
+                    # In the last 5 minutes
+                    created_at__gt=datetime.datetime.now(datetime.UTC)
+                    - datetime.timedelta(minutes=5),
+                )
+            except VerificationCode.DoesNotExist:
+                pass
+            time.sleep(5)
+
+            for i in range(5):
+                yield f"data: Event {i}\n\n".encode()
+                time.sleep(1)
+        except Exception:
+            raise
+
+    return StreamingHttpResponse(
+        event_stream(),
+        content_type="text/event-stream",
+    )
 
 
 @response.request_get()
