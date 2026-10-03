@@ -65,6 +65,11 @@ export default defineConfig({
         changeOrigin: false,
         secure: false,
       },
+      "/courses.json": {
+        target: `http://${process.env.BACKEND_HOST ?? "localhost"}:8081`,
+        changeOrigin: false,
+        secure: false,
+      },
     },
   },
   css: {
