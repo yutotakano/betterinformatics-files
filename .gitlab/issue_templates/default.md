@@ -1,1 +1,0 @@
-Choose a template from the description dropdown above :')
